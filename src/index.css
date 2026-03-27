@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #191919;
+  --color-sidebar: #202020;
+  --color-surface: #252525;
+  --color-border: #2f2f2f;
+  --color-border-hover: #373737;
+  --color-text-primary: #e6e6e6;
+  --color-text-secondary: #a8a8a5;
+  --color-text-muted: #787774;
+  --color-notion-blue: #2383e2;
+  --color-notion-green: #448361;
+  --color-notion-orange: #d9730d;
+  --color-notion-yellow: #cb912f;
+  --color-notion-red: #c4554d;
+  --color-notion-purple: #9065b0;
+  --color-notion-pink: #c14c8a;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text-primary antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+.notion-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.notion-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notion-scrollbar::-webkit-scrollbar-thumb {
+  background: #373737;
+  border-radius: 4px;
+}
+
+.notion-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #454545;
+}

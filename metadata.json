@@ -1,0 +1,5 @@
+{
+  "name": "NutriPlan",
+  "description": "Plataforma de planificación nutricional con estética Notion, seguimiento de hábitos y sincronización.",
+  "requestFramePermissions": []
+}
