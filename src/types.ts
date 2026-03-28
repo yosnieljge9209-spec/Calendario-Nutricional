@@ -63,6 +63,17 @@ export type Recipe = {
   photoUrl?: string;
 };
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export type Recurrence = {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  daysOfWeek?: number[]; // 0-6 for weekly
+  dayOfMonth?: number;
+  endDate?: string;
+  count?: number;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -73,6 +84,8 @@ export type CalendarEvent = {
   recipeId?: string;
   ingredients: RecipeIngredient[];
   completed: boolean;
+  recurrence?: Recurrence;
+  parentId?: string;
 };
 
 export type PhysiologicalLog = {

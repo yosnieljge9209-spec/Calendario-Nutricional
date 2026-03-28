@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { format, subDays } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
+import { format, subDays, addDays, addWeeks, addMonths, addYears, isBefore, parseISO, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { calculateTargets } from './services/metabolicService';
 import { getCoachInsights } from './services/coachService';
@@ -22,8 +22,9 @@ import { EventModal } from './components/EventModal';
 import { PhysiologicalView } from './components/PhysiologicalView';
 import { HabitsView } from './components/HabitsView';
 import { SyncView } from './components/SyncView';
+import { useSync } from './hooks/useSync';
 import { CalendarEvent, UserTargets, Category, Ingredient, Recipe, UserProfile, WaterLog, WeightLog, PhysiologicalLog, Habit, HabitLog } from './types';
-import { Plus, Search, Bell, User, Menu, X, ShoppingBasket } from 'lucide-react';
+import { Plus, Search, Bell, User, Menu, X, ShoppingBasket, Cloud, RefreshCw, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
@@ -251,6 +252,36 @@ function App() {
   const [modalInitialDate, setModalInitialDate] = useState<string | undefined>();
   const [modalInitialTime, setModalInitialTime] = useState<string | undefined>();
 
+  // Sync logic
+  const nutriData = {
+    userProfile,
+    events,
+    weightLogs,
+    waterLogs,
+    physioLogs,
+    habits,
+    habitLogs,
+    categories,
+    ingredients,
+    recipes
+  };
+
+  const handleSyncComplete = useCallback((data: any) => {
+    if (!data) return;
+    if (data.userProfile) setUserProfile(data.userProfile);
+    if (data.events) setEvents(data.events);
+    if (data.weightLogs) setWeightLogs(data.weightLogs);
+    if (data.waterLogs) setWaterLogs(data.waterLogs);
+    if (data.physioLogs) setPhysioLogs(data.physioLogs);
+    if (data.habits) setHabits(data.habits);
+    if (data.habitLogs) setHabitLogs(data.habitLogs);
+    if (data.categories) setCategories(data.categories);
+    if (data.ingredients) setIngredients(data.ingredients);
+    if (data.recipes) setRecipes(data.recipes);
+  }, []);
+
+  const { status, lastSync, error: syncError, isAuthenticated, download, upload } = useSync(nutriData, handleSyncComplete);
+
   useEffect(() => {
     localStorage.setItem('nutriplan_profile', JSON.stringify(userProfile));
     localStorage.setItem('nutriplan_events', JSON.stringify(events));
@@ -315,16 +346,118 @@ function App() {
   };
 
   const handleSaveEvent = (event: CalendarEvent) => {
-    if (selectedEvent) {
-      setEvents(events.map(e => e.id === event.id ? event : e));
+    if (event.recurrence) {
+      const instances = generateRecurringEvents(event);
+      if (selectedEvent) {
+        // If it was already recurring, we might want to clean up old ones
+        // But for a simple "Save" we'll just replace this one and add others
+        setEvents(prev => [...prev.filter(e => e.id !== event.id), ...instances]);
+      } else {
+        setEvents(prev => [...prev, ...instances]);
+      }
     } else {
-      setEvents([...events, event]);
+      if (selectedEvent) {
+        setEvents(events.map(e => e.id === event.id ? event : e));
+      } else {
+        setEvents([...events, event]);
+      }
     }
     setIsEventModalOpen(false);
   };
 
+  const handleSaveRecurringEvent = (event: CalendarEvent, mode: 'instance' | 'all') => {
+    if (mode === 'instance') {
+      setEvents(events.map(e => e.id === event.id ? event : e));
+    } else {
+      // Update all future instances with same parentId
+      const parentId = event.parentId || event.id;
+      const baseDate = event.date;
+      
+      // Delete all future instances
+      const filteredEvents = events.filter(e => {
+        if (e.parentId !== parentId && e.id !== parentId) return true;
+        return isBefore(parseISO(e.date), parseISO(baseDate));
+      });
+
+      // Generate new instances starting from this one
+      const newInstances = generateRecurringEvents({ ...event, id: parentId, parentId: undefined });
+      setEvents([...filteredEvents, ...newInstances]);
+    }
+    setIsEventModalOpen(false);
+  };
+
+  const generateRecurringEvents = (baseEvent: CalendarEvent): CalendarEvent[] => {
+    if (!baseEvent.recurrence) return [baseEvent];
+
+    const instances: CalendarEvent[] = [];
+    const { frequency, interval, endDate, count, daysOfWeek } = baseEvent.recurrence;
+    const startDate = parseISO(baseEvent.date);
+    let currentDate = startDate;
+    let occurrences = 0;
+
+    const maxDate = endDate ? parseISO(endDate) : addYears(startDate, 1);
+    const maxCount = count || 365;
+
+    while (occurrences < maxCount && (isBefore(currentDate, maxDate) || format(currentDate, 'yyyy-MM-dd') === format(maxDate, 'yyyy-MM-dd'))) {
+      if (frequency === 'weekly' && daysOfWeek && daysOfWeek.length > 0) {
+        // Find all days in this week that match daysOfWeek
+        for (let i = 0; i < 7; i++) {
+          const dayDate = addDays(currentDate, i);
+          if (isBefore(dayDate, startDate)) continue;
+          if (endDate && isAfter(dayDate, maxDate)) break;
+          if (occurrences >= maxCount) break;
+
+          if (daysOfWeek.includes(dayDate.getDay())) {
+            instances.push({
+              ...baseEvent,
+              id: occurrences === 0 ? baseEvent.id : Math.random().toString(36).substr(2, 9),
+              date: format(dayDate, 'yyyy-MM-dd'),
+              parentId: baseEvent.id,
+              recurrence: undefined // Instances don't carry the recurrence data to avoid recursive expansion
+            });
+            occurrences++;
+          }
+        }
+      } else {
+        instances.push({
+          ...baseEvent,
+          id: occurrences === 0 ? baseEvent.id : Math.random().toString(36).substr(2, 9),
+          date: format(currentDate, 'yyyy-MM-dd'),
+          parentId: baseEvent.id,
+          recurrence: undefined
+        });
+        occurrences++;
+      }
+
+      if (frequency === 'daily') currentDate = addDays(currentDate, interval);
+      else if (frequency === 'weekly') currentDate = addWeeks(currentDate, interval);
+      else if (frequency === 'monthly') currentDate = addMonths(currentDate, interval);
+      else if (frequency === 'yearly') currentDate = addYears(currentDate, interval);
+    }
+
+    return instances;
+  };
+
   const handleDeleteEvent = (id: string) => {
     setEvents(events.filter(e => e.id !== id));
+    setIsEventModalOpen(false);
+  };
+
+  const handleDeleteRecurringEvent = (id: string, mode: 'instance' | 'all') => {
+    const event = events.find(e => e.id === id);
+    if (!event) return;
+
+    if (mode === 'instance') {
+      setEvents(events.filter(e => e.id !== id));
+    } else {
+      const parentId = event.parentId || event.id;
+      const baseDate = event.date;
+      
+      setEvents(events.filter(e => {
+        if (e.parentId !== parentId && e.id !== parentId) return true;
+        return isBefore(parseISO(e.date), parseISO(baseDate));
+      }));
+    }
     setIsEventModalOpen(false);
   };
 
@@ -361,35 +494,6 @@ function App() {
 
   const handleAddCategory = (category: Category) => {
     setCategories(prev => [...prev, { ...category, id: Math.random().toString(36).substr(2, 9) }]);
-  };
-
-  const handleSyncComplete = (data: any) => {
-    if (!data) return;
-    if (data.userProfile) setUserProfile(data.userProfile);
-    if (data.events) setEvents(data.events);
-    if (data.ingredients) setIngredients(data.ingredients);
-    if (data.recipes) setRecipes(data.recipes);
-    if (data.weightLogs) setWeightLogs(data.weightLogs);
-    if (data.waterLogs) setWaterLogs(data.waterLogs);
-    if (data.physioLogs) setPhysioLogs(data.physioLogs);
-    if (data.habits) setHabits(data.habits);
-    if (data.habitLogs) setHabitLogs(data.habitLogs);
-    if (data.categories) setCategories(data.categories);
-  };
-
-  const getCurrentSyncData = () => {
-    return {
-      userProfile,
-      events,
-      ingredients,
-      recipes,
-      weightLogs,
-      waterLogs,
-      physioLogs,
-      habits,
-      habitLogs,
-      categories
-    };
   };
 
   const renderContent = () => {
@@ -521,7 +625,13 @@ function App() {
         return (
           <SyncView 
             onSyncComplete={handleSyncComplete}
-            getCurrentData={getCurrentSyncData}
+            getCurrentData={() => nutriData}
+            syncStatus={status}
+            lastSync={lastSync}
+            syncError={syncError}
+            isAuthenticated={isAuthenticated}
+            onDownload={download}
+            onUpload={() => upload(nutriData)}
           />
         );
       default:
@@ -611,6 +721,26 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Sync Status Indicator */}
+            {isAuthenticated && (
+              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-full bg-surface border border-border text-[10px] font-medium text-text-secondary">
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  status === 'loading' ? "bg-notion-orange animate-pulse" :
+                  status === 'error' ? "bg-notion-red" :
+                  status === 'success' ? "bg-notion-green" : "bg-notion-green/50"
+                )} />
+                <span className="max-w-[100px] truncate">
+                  {status === 'loading' ? 'Sincronizando...' : 
+                   status === 'error' ? 'Error de sincronización' : 
+                   lastSync ? `Sincronizado: ${lastSync.split(',')[1]}` : 'Conectado'}
+                </span>
+                {status === 'error' && (
+                  <button onClick={download} className="text-notion-blue hover:underline">Reintentar</button>
+                )}
+              </div>
+            )}
+
             <div className="relative group hidden sm:block">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted group-hover:text-text-secondary transition-colors" />
               <input 
@@ -657,6 +787,8 @@ function App() {
           onSave={handleSaveEvent}
           onDelete={handleDeleteEvent}
           onAddCategory={handleAddCategory}
+          onSaveRecurring={handleSaveRecurringEvent}
+          onDeleteRecurring={handleDeleteRecurringEvent}
         />
       )}
     </div>

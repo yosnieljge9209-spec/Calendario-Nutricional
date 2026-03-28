@@ -15,7 +15,8 @@ import {
   Activity,
   Wheat,
   Droplet,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { CalendarEvent, RecipeIngredient, Category, Ingredient, Recipe } from '../types';
@@ -33,6 +34,8 @@ type EventModalProps = {
   onSave: (event: CalendarEvent) => void;
   onDelete: (id: string) => void;
   onAddCategory: (cat: Category) => void;
+  onSaveRecurring?: (event: CalendarEvent, mode: 'instance' | 'all') => void;
+  onDeleteRecurring?: (id: string, mode: 'instance' | 'all') => void;
 };
 
 export const EventModal = ({ 
@@ -45,7 +48,9 @@ export const EventModal = ({
   onClose, 
   onSave, 
   onDelete,
-  onAddCategory
+  onAddCategory,
+  onSaveRecurring,
+  onDeleteRecurring
 }: EventModalProps) => {
   const [formData, setFormData] = useState<CalendarEvent>(event || {
     id: Math.random().toString(36).substr(2, 9),
@@ -62,6 +67,13 @@ export const EventModal = ({
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('🍴');
+  
+  const [showRecurrence, setShowRecurrence] = useState(!!formData.recurrence);
+  const [recurrence, setRecurrence] = useState(formData.recurrence || {
+    frequency: 'daily' as const,
+    interval: 1
+  });
+  const [saveMode, setSaveMode] = useState<'instance' | 'all' | null>(null);
 
   const handleAddCategory = () => {
     if (newCatName.trim()) {
@@ -266,6 +278,156 @@ export const EventModal = ({
             </div>
           </div>
 
+          {/* Recurrence Section */}
+          <div className="space-y-4 pt-4 border-t border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RefreshCw className={cn("w-4 h-4", showRecurrence ? "text-notion-blue" : "text-text-muted")} />
+                <span className="text-sm font-bold text-text-primary">Repetir evento</span>
+              </div>
+              <button 
+                onClick={() => setShowRecurrence(!showRecurrence)}
+                className={cn(
+                  "relative inline-flex h-5 w-10 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notion-blue focus-visible:ring-offset-2",
+                  showRecurrence ? "bg-notion-blue" : "bg-border"
+                )}
+              >
+                <span className={cn(
+                  "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                  showRecurrence ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {showRecurrence && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200 bg-bg/30 p-4 rounded-xl border border-border">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Frecuencia</label>
+                  <select 
+                    value={recurrence.frequency}
+                    onChange={(e) => setRecurrence({ ...recurrence, frequency: e.target.value as any })}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                  >
+                    <option value="daily">Diariamente</option>
+                    <option value="weekly">Semanalmente</option>
+                    <option value="monthly">Mensualmente</option>
+                    <option value="yearly">Anualmente</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Repetir cada</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={recurrence.interval}
+                      onChange={(e) => setRecurrence({ ...recurrence, interval: parseInt(e.target.value) || 1 })}
+                      className="w-20 bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                    />
+                    <span className="text-xs text-text-muted">
+                      {recurrence.frequency === 'daily' ? 'días' : 
+                       recurrence.frequency === 'weekly' ? 'semanas' : 
+                       recurrence.frequency === 'monthly' ? 'meses' : 'años'}
+                    </span>
+                  </div>
+                </div>
+
+                {recurrence.frequency === 'weekly' && (
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Repetir los días</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map((day, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            const days = recurrence.daysOfWeek || [];
+                            const newDays = days.includes(i) ? days.filter(d => d !== i) : [...days, i];
+                            setRecurrence({ ...recurrence, daysOfWeek: newDays });
+                          }}
+                          className={cn(
+                            "w-8 h-8 rounded-full text-xs font-bold transition-all",
+                            recurrence.daysOfWeek?.includes(i) ? "bg-notion-blue text-white" : "bg-bg border border-border text-text-muted hover:bg-bg/80"
+                          )}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Termina</label>
+                  <select 
+                    value={recurrence.endDate ? 'date' : recurrence.count ? 'count' : 'never'}
+                    onChange={(e) => {
+                      if (e.target.value === 'never') setRecurrence({ ...recurrence, endDate: undefined, count: undefined });
+                      else if (e.target.value === 'date') setRecurrence({ ...recurrence, endDate: format(new Date(), 'yyyy-MM-dd'), count: undefined });
+                      else setRecurrence({ ...recurrence, endDate: undefined, count: 10 });
+                    }}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                  >
+                    <option value="never">Nunca</option>
+                    <option value="date">En fecha</option>
+                    <option value="count">Después de X veces</option>
+                  </select>
+                </div>
+
+                {recurrence.endDate !== undefined && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Fecha de fin</label>
+                    <input 
+                      type="date" 
+                      value={recurrence.endDate}
+                      onChange={(e) => setRecurrence({ ...recurrence, endDate: e.target.value })}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                    />
+                  </div>
+                )}
+
+                {recurrence.count !== undefined && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Número de veces</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={recurrence.count}
+                      onChange={(e) => setRecurrence({ ...recurrence, count: parseInt(e.target.value) || 1 })}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Save Mode Selection for Recurring Events */}
+            {event?.recurrence && (
+              <div className="p-4 bg-notion-blue/5 border border-notion-blue/20 rounded-xl space-y-3">
+                <p className="text-xs font-bold text-notion-blue uppercase tracking-wider">Este es un evento recurrente</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSaveMode('instance')}
+                    className={cn(
+                      "flex-1 py-2 px-3 rounded-lg text-xs font-medium border transition-all",
+                      saveMode === 'instance' ? "bg-notion-blue text-white border-notion-blue" : "bg-bg border-border text-text-muted hover:border-notion-blue/50"
+                    )}
+                  >
+                    Solo esta instancia
+                  </button>
+                  <button
+                    onClick={() => setSaveMode('all')}
+                    className={cn(
+                      "flex-1 py-2 px-3 rounded-lg text-xs font-medium border transition-all",
+                      saveMode === 'all' ? "bg-notion-blue text-white border-notion-blue" : "bg-bg border-border text-text-muted hover:border-notion-blue/50"
+                    )}
+                  >
+                    Todos los eventos futuros
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Ingredients + Metrics */}
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-2">
@@ -452,17 +614,38 @@ export const EventModal = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-border bg-bg/50 flex items-center justify-between">
-          {event && (
-            <button 
-              onClick={() => onDelete(event.id)}
-              className="flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-red-500/10 rounded-md text-sm font-medium transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Eliminar</span>
-            </button>
+        <div className="p-4 border-t border-border bg-bg/50 flex flex-col gap-4">
+          {event?.parentId && !saveMode && (
+             <div className="flex flex-col gap-2 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Opciones de eliminación</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onDelete(event.id)}
+                    className="flex-1 py-2 px-3 bg-bg border border-border hover:border-red-500/50 text-red-500 rounded-lg text-xs font-medium transition-all"
+                  >
+                    Solo este
+                  </button>
+                  <button 
+                    onClick={() => onDeleteRecurring?.(event.id, 'all')}
+                    className="flex-1 py-2 px-3 bg-bg border border-border hover:border-red-500/50 text-red-500 rounded-lg text-xs font-medium transition-all"
+                  >
+                    Todos los futuros
+                  </button>
+                </div>
+             </div>
           )}
-          <div className="flex items-center gap-3 ml-auto">
+          
+          <div className="flex items-center justify-between">
+            {event && !event.parentId && (
+              <button 
+                onClick={() => onDelete(event.id)}
+                className="flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-red-500/10 rounded-md text-sm font-medium transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Eliminar</span>
+              </button>
+            )}
+            <div className="flex items-center gap-3 ml-auto">
             <button 
               onClick={onClose}
               className="px-4 py-2 text-text-secondary hover:text-text-primary text-sm font-medium transition-all"
@@ -470,8 +653,22 @@ export const EventModal = ({
               Cancelar
             </button>
             <button 
-              onClick={() => onSave(formData)}
-              className="flex items-center gap-2 px-6 py-2 bg-notion-blue hover:bg-notion-blue/90 text-white rounded-md text-sm font-medium transition-all shadow-lg shadow-notion-blue/20"
+              disabled={!!event?.recurrence && !saveMode}
+              onClick={() => {
+                const finalData = {
+                  ...formData,
+                  recurrence: showRecurrence ? recurrence : undefined
+                };
+                if (event?.recurrence && onSaveRecurring && saveMode) {
+                  onSaveRecurring(finalData, saveMode);
+                } else {
+                  onSave(finalData);
+                }
+              }}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2 bg-notion-blue hover:bg-notion-blue/90 text-white rounded-md text-sm font-medium transition-all shadow-lg shadow-notion-blue/20",
+                event?.recurrence && !saveMode && "opacity-50 cursor-not-allowed"
+              )}
             >
               <Save className="w-4 h-4" />
               <span>Guardar Comida</span>
@@ -480,5 +677,6 @@ export const EventModal = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };

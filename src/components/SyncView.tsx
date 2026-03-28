@@ -1,50 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, RefreshCw, LogIn, LogOut, CheckCircle, AlertCircle, Download, Upload } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { SyncStatus } from '../hooks/useSync';
 
 type SyncViewProps = {
   onSyncComplete: (data: any) => void;
   getCurrentData: () => any;
+  syncStatus: SyncStatus;
+  lastSync: string | null;
+  syncError: string | null;
+  isAuthenticated: boolean;
+  onDownload: () => Promise<void>;
+  onUpload: () => Promise<void>;
 };
 
-export const SyncView = ({ onSyncComplete, getCurrentData }: SyncViewProps) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+export const SyncView = ({ 
+  onSyncComplete, 
+  getCurrentData, 
+  syncStatus, 
+  lastSync, 
+  syncError, 
+  isAuthenticated,
+  onDownload,
+  onUpload
+}: SyncViewProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(localStorage.getItem('nutriplan_last_sync'));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(syncError);
+  const [clientId, setClientId] = useState(localStorage.getItem('nutriplan_client_id') || '');
+  const [clientSecret, setClientSecret] = useState(localStorage.getItem('nutriplan_client_secret') || '');
 
   useEffect(() => {
-    checkAuthStatus();
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        setIsAuthenticated(true);
-        checkAuthStatus();
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const res = await fetch('/api/auth/status');
-      const data = await res.json();
-      setIsAuthenticated(data.isAuthenticated);
-    } catch (e) {
-      setIsAuthenticated(false);
-    }
-  };
+    setError(syncError);
+  }, [syncError]);
 
   const handleConnect = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Save credentials locally
+      if (clientId) localStorage.setItem('nutriplan_client_id', clientId);
+      if (clientSecret) localStorage.setItem('nutriplan_client_secret', clientSecret);
+
+      // Send config to server
+      const configRes = await fetch('/api/auth/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret })
+      });
+
+      if (!configRes.ok) {
+        const errData = await configRes.json();
+        throw new Error(errData.error || "Error al configurar credenciales");
+      }
+
       const res = await fetch('/api/auth/url');
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "No se pudo obtener la URL de autenticación");
+      }
       const { url } = await res.json();
+      
+      if (!url || url.includes('client_id=undefined')) {
+        setError("Error: El Client ID no se configuró correctamente.");
+        return;
+      }
+      
       window.open(url, 'google_auth_popup', 'width=600,height=700');
-    } catch (e) {
-      setError("Error al conectar con Google");
+    } catch (e: any) {
+      setError(e.message || "Error al conectar con Google.");
     } finally {
       setIsLoading(false);
     }
@@ -53,56 +76,22 @@ export const SyncView = ({ onSyncComplete, getCurrentData }: SyncViewProps) => {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setIsAuthenticated(false);
+      window.location.reload(); // Reload to reset sync state
     } catch (e) {
       console.error("Logout error:", e);
     }
   };
 
-  const handleUpload = async () => {
+  const handleManualUpload = async () => {
     setIsLoading(true);
-    setError(null);
-    try {
-      const data = getCurrentData();
-      const res = await fetch('/api/sync/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data })
-      });
-      
-      if (!res.ok) throw new Error("Upload failed");
-      
-      const now = new Date().toLocaleString();
-      setLastSync(now);
-      localStorage.setItem('nutriplan_last_sync', now);
-    } catch (e) {
-      setError("Error al subir los datos");
-    } finally {
-      setIsLoading(false);
-    }
+    await onUpload();
+    setIsLoading(false);
   };
 
-  const handleDownload = async () => {
+  const handleManualDownload = async () => {
     setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/sync/download');
-      if (!res.ok) {
-        if (res.status === 404) throw new Error("No se encontró respaldo en Drive");
-        throw new Error("Download failed");
-      }
-      
-      const { data } = await res.json();
-      onSyncComplete(data);
-      
-      const now = new Date().toLocaleString();
-      setLastSync(now);
-      localStorage.setItem('nutriplan_last_sync', now);
-    } catch (e: any) {
-      setError(e.message || "Error al descargar los datos");
-    } finally {
-      setIsLoading(false);
-    }
+    await onDownload();
+    setIsLoading(false);
   };
 
   return (
@@ -113,37 +102,63 @@ export const SyncView = ({ onSyncComplete, getCurrentData }: SyncViewProps) => {
             <Cloud className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sincronización en la Nube</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Google Drive — Sincronización</h1>
             <p className="text-text-secondary text-sm">Respalda tus datos en Google Drive para acceder desde cualquier dispositivo.</p>
           </div>
         </div>
 
         <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between bg-bg/50 p-4 rounded-xl border border-border">
+            <div className="flex items-center gap-4">
               <div className={cn(
-                "w-3 h-3 rounded-full",
-                isAuthenticated ? "bg-notion-green" : "bg-notion-red"
+                "w-4 h-4 rounded-full shadow-sm",
+                isAuthenticated ? "bg-notion-green" : "bg-notion-red",
+                syncStatus === 'loading' && "animate-pulse"
               )} />
-              <span className="font-bold">Estado: {isAuthenticated ? "Conectado" : "Desconectado"}</span>
+              <div>
+                <p className="font-bold text-sm">{isAuthenticated ? "Conectado" : "No conectado"}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">
+                  {syncStatus === 'loading' ? "Sincronizando..." : 
+                   isAuthenticated ? "Sincronización automática activa" : "Ingresa tu Client ID y haz clic en Conectar"}
+                </p>
+              </div>
             </div>
-            {isAuthenticated ? (
-              <button 
-                onClick={handleLogout}
-                className="text-xs font-bold text-notion-red hover:underline flex items-center gap-1"
-              >
-                <LogOut className="w-3 h-3" /> Cerrar Sesión
-              </button>
-            ) : (
+            {!isAuthenticated && (
               <button 
                 onClick={handleConnect}
                 disabled={isLoading}
-                className="bg-notion-blue text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-notion-blue/90 transition-colors disabled:opacity-50"
+                className="bg-notion-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-notion-blue/90 transition-all disabled:opacity-50 shadow-lg shadow-notion-blue/20"
               >
-                <LogIn className="w-4 h-4" /> Conectar con Google Drive
+                Conectar
               </button>
             )}
           </div>
+
+          {!isAuthenticated && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Google OAuth Client ID</label>
+                <input 
+                  type="text" 
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="878049462979-..."
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Google OAuth Client Secret</label>
+                <input 
+                  type="password" 
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="GOCSPX-..."
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-notion-blue/50 outline-none font-mono"
+                />
+              </div>
+              <p className="text-[10px] text-text-muted italic px-1">Las credenciales se guardan localmente en este navegador.</p>
+            </div>
+          )}
 
           {error && (
             <div className="p-4 rounded-xl bg-notion-red/5 border border-notion-red/20 text-notion-red flex items-center gap-3">
@@ -153,51 +168,113 @@ export const SyncView = ({ onSyncComplete, getCurrentData }: SyncViewProps) => {
           )}
 
           {isAuthenticated && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
-              <button
-                onClick={handleUpload}
-                disabled={isLoading}
-                className="flex flex-col items-center justify-center p-6 rounded-xl border border-border hover:bg-surface-light transition-all group"
-              >
-                <div className="w-10 h-10 rounded-full bg-notion-orange/10 flex items-center justify-center text-notion-orange mb-3 group-hover:scale-110 transition-transform">
-                  <Upload className="w-5 h-5" />
-                </div>
-                <span className="font-bold text-sm">Subir a la Nube</span>
-                <span className="text-[10px] text-text-muted mt-1">Guarda tus datos actuales</span>
-              </button>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  onClick={handleManualUpload}
+                  disabled={isLoading || syncStatus === 'loading'}
+                  className="flex flex-col items-center justify-center p-6 rounded-xl border border-border hover:bg-surface-light transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-notion-orange/10 flex items-center justify-center text-notion-orange mb-3 group-hover:scale-110 transition-transform">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <span className="font-bold text-sm">Forzar Subida</span>
+                  <span className="text-[10px] text-text-muted mt-1">Sincronizar ahora manualmente</span>
+                </button>
 
-              <button
-                onClick={handleDownload}
-                disabled={isLoading}
-                className="flex flex-col items-center justify-center p-6 rounded-xl border border-border hover:bg-surface-light transition-all group"
-              >
-                <div className="w-10 h-10 rounded-full bg-notion-green/10 flex items-center justify-center text-notion-green mb-3 group-hover:scale-110 transition-transform">
-                  <Download className="w-5 h-5" />
-                </div>
-                <span className="font-bold text-sm">Descargar de la Nube</span>
-                <span className="text-[10px] text-text-muted mt-1">Recupera tus datos guardados</span>
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={handleManualDownload}
+                  disabled={isLoading || syncStatus === 'loading'}
+                  className="flex flex-col items-center justify-center p-6 rounded-xl border border-border hover:bg-surface-light transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-notion-green/10 flex items-center justify-center text-notion-green mb-3 group-hover:scale-110 transition-transform">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <span className="font-bold text-sm">Forzar Descarga</span>
+                  <span className="text-[10px] text-text-muted mt-1">Recuperar datos de la nube</span>
+                </button>
+              </div>
 
-          {lastSync && (
-            <div className="flex items-center gap-2 text-[10px] text-text-muted font-bold uppercase tracking-wider pt-4">
-              <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")} />
-              Última sincronización: {lastSync}
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                {lastSync && (
+                  <div className="flex items-center gap-2 text-[10px] text-text-muted font-bold uppercase tracking-wider">
+                    <RefreshCw className={cn("w-3 h-3", syncStatus === 'loading' && "animate-spin")} />
+                    Última sincronización: {lastSync}
+                  </div>
+                )}
+                <button 
+                  onClick={handleLogout}
+                  className="text-xs font-bold text-notion-red hover:underline flex items-center gap-1 ml-auto"
+                >
+                  <LogOut className="w-3 h-3" /> Cerrar Sesión
+                </button>
+              </div>
             </div>
           )}
         </div>
 
         <div className="p-6 rounded-2xl bg-notion-blue/5 border border-notion-blue/10 space-y-4">
           <h2 className="font-bold text-notion-blue flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" /> ¿Cómo funciona?
+            <CheckCircle className="w-4 h-4" /> Sincronización Automática
           </h2>
-          <ul className="text-xs text-text-secondary space-y-2 list-disc pl-4">
-            <li>Tus datos se guardan en un archivo privado llamado <code className="bg-surface px-1 rounded">nutriplan_backup.json</code> en tu Google Drive.</li>
-            <li>NutriPlan solo tiene acceso a este archivo específico, no a todo tu Drive.</li>
-            <li>Para sincronizar otro dispositivo, simplemente inicia sesión con la misma cuenta de Google y selecciona "Descargar de la Nube".</li>
-            <li>Se recomienda "Subir a la Nube" después de realizar cambios importantes.</li>
-          </ul>
+          <p className="text-xs text-text-secondary leading-relaxed">
+            NutriPlan sincroniza tus datos automáticamente en segundo plano, igual que Cashew. 
+            Cualquier cambio que realices se guardará en tu Google Drive después de unos segundos de inactividad. 
+            Al abrir la aplicación en otro dispositivo, se descargarán los datos más recientes automáticamente.
+          </p>
+        </div>
+
+        <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-6">
+          <h2 className="font-bold text-lg">Configuración (una sola vez)</h2>
+          
+          <div className="space-y-6">
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-notion-blue text-white flex items-center justify-center font-bold shrink-0">1</div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm">Google Cloud Console</p>
+                <p className="text-xs text-text-secondary">
+                  Ve a <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="text-notion-blue hover:underline">console.cloud.google.com</a> → Nuevo proyecto → Nombre: <code className="bg-bg px-1 rounded">NutriPlan</code>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-notion-blue text-white flex items-center justify-center font-bold shrink-0">2</div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm">Habilitar Google Drive API</p>
+                <p className="text-xs text-text-secondary">
+                  APIs y servicios → Biblioteca → <code className="bg-bg px-1 rounded">Google Drive API</code> → Habilitar
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-notion-blue text-white flex items-center justify-center font-bold shrink-0">3</div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm">Pantalla de consentimiento OAuth</p>
+                <p className="text-xs text-text-secondary">
+                  Externo → Crear → Agregar permiso <code className="bg-bg px-1 rounded">drive.appdata</code> → Agregar tu email como usuario de prueba
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-notion-blue text-white flex items-center justify-center font-bold shrink-0">4</div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm">Crear credencial OAuth 2.0</p>
+                <p className="text-xs text-text-secondary">
+                  Credenciales → Crear → ID de cliente OAuth → Aplicación web
+                </p>
+                <div className="mt-2 p-3 bg-bg border border-border rounded-lg space-y-2">
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Origen autorizado:</p>
+                  <code className="text-[10px] text-notion-orange break-all">{window.location.origin}</code>
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mt-2">URI de redireccionamiento:</p>
+                  <code className="text-[10px] text-notion-orange break-all">{window.location.origin}/auth/google/callback</code>
+                </div>
+                <p className="text-xs text-text-secondary mt-2">Copia el Client ID y pégalo arriba.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

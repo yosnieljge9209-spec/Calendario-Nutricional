@@ -24,16 +24,39 @@ async function startServer() {
     sameSite: 'none'
   }));
 
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.APP_URL || 'http://localhost:3000'}/auth/google/callback`
-  );
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+  const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+
+  const getOAuth2Client = (req: express.Request) => {
+    const config = req.session?.config || {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET
+    };
+
+    return new google.auth.OAuth2(
+      config.clientId,
+      config.clientSecret,
+      `${APP_URL}/auth/google/callback`
+    );
+  };
 
   // API Routes
+  app.post("/api/auth/config", (req, res) => {
+    const { clientId, clientSecret } = req.body;
+    if (!clientId || !clientSecret) return res.status(400).json({ error: "Faltan credenciales" });
+    req.session!.config = { clientId, clientSecret };
+    res.json({ success: true });
+  });
+
   app.get("/api/auth/url", (req, res) => {
+    const oauth2Client = getOAuth2Client(req);
+    
+    if (!oauth2Client._clientId || !oauth2Client._clientSecret) {
+      return res.status(400).json({ error: "Credenciales no configuradas" });
+    }
     const scopes = [
-      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.appdata',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/userinfo.email'
     ];
@@ -49,6 +72,7 @@ async function startServer() {
 
   app.get("/auth/google/callback", async (req, res) => {
     const { code } = req.query;
+    const oauth2Client = getOAuth2Client(req);
     try {
       const { tokens } = await oauth2Client.getToken(code as string);
       req.session!.tokens = tokens;
@@ -88,20 +112,22 @@ async function startServer() {
     if (!req.session?.tokens) return res.status(401).json({ error: "No autenticado" });
     
     const tokens = req.session.tokens;
+    const oauth2Client = getOAuth2Client(req);
     oauth2Client.setCredentials(tokens);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
     try {
-      // Find existing sync file
+      // Find existing sync file in appDataFolder
       const listRes = await drive.files.list({
         q: "name = 'nutriplan_backup.json' and trashed = false",
         fields: 'files(id)',
-        spaces: 'drive'
+        spaces: 'appDataFolder'
       });
 
       const fileMetadata = {
         name: 'nutriplan_backup.json',
-        mimeType: 'application/json'
+        mimeType: 'application/json',
+        parents: ['appDataFolder']
       };
       const media = {
         mimeType: 'application/json',
@@ -135,6 +161,7 @@ async function startServer() {
     if (!req.session?.tokens) return res.status(401).json({ error: "No autenticado" });
     
     const tokens = req.session.tokens;
+    const oauth2Client = getOAuth2Client(req);
     oauth2Client.setCredentials(tokens);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
@@ -142,7 +169,7 @@ async function startServer() {
       const listRes = await drive.files.list({
         q: "name = 'nutriplan_backup.json' and trashed = false",
         fields: 'files(id)',
-        spaces: 'drive'
+        spaces: 'appDataFolder'
       });
 
       if (!listRes.data.files || listRes.data.files.length === 0) {
