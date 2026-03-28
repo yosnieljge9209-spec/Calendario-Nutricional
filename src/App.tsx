@@ -21,6 +21,7 @@ import { ProfileView } from './components/ProfileView';
 import { EventModal } from './components/EventModal';
 import { PhysiologicalView } from './components/PhysiologicalView';
 import { HabitsView } from './components/HabitsView';
+import { SyncView } from './components/SyncView';
 import { CalendarEvent, UserTargets, Category, Ingredient, Recipe, UserProfile, WaterLog, WeightLog, PhysiologicalLog, Habit, HabitLog } from './types';
 import { Plus, Search, Bell, User, Menu, X, ShoppingBasket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -362,6 +363,35 @@ function App() {
     setCategories(prev => [...prev, { ...category, id: Math.random().toString(36).substr(2, 9) }]);
   };
 
+  const handleSyncComplete = (data: any) => {
+    if (!data) return;
+    if (data.userProfile) setUserProfile(data.userProfile);
+    if (data.events) setEvents(data.events);
+    if (data.ingredients) setIngredients(data.ingredients);
+    if (data.recipes) setRecipes(data.recipes);
+    if (data.weightLogs) setWeightLogs(data.weightLogs);
+    if (data.waterLogs) setWaterLogs(data.waterLogs);
+    if (data.physioLogs) setPhysioLogs(data.physioLogs);
+    if (data.habits) setHabits(data.habits);
+    if (data.habitLogs) setHabitLogs(data.habitLogs);
+    if (data.categories) setCategories(data.categories);
+  };
+
+  const getCurrentSyncData = () => {
+    return {
+      userProfile,
+      events,
+      ingredients,
+      recipes,
+      weightLogs,
+      waterLogs,
+      physioLogs,
+      habits,
+      habitLogs,
+      categories
+    };
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
@@ -485,6 +515,13 @@ function App() {
             habitLogs={habitLogs}
             onToggleHabit={handleToggleHabit}
             onAddHabit={(h) => setHabits(prev => [...prev, h])}
+          />
+        );
+      case 'sync':
+        return (
+          <SyncView 
+            onSyncComplete={handleSyncComplete}
+            getCurrentData={getCurrentSyncData}
           />
         );
       default:

@@ -14,12 +14,18 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ReferenceLine
 } from 'recharts';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarEvent, UserTargets } from '../types';
-import { Flame, Activity, TrendingUp, Target } from 'lucide-react';
+import { Flame, Activity, TrendingUp, Target, Zap } from 'lucide-react';
 
 type MetricsViewProps = {
   events: CalendarEvent[];
@@ -63,7 +69,8 @@ export const MetricsView = ({ events, targets }: MetricsViewProps) => {
       kcal: Math.round(dayStats.kcal),
       prot: Math.round(dayStats.prot),
       cost: Number(dayStats.cost.toFixed(2)),
-      target: targets.kcal
+      targetKcal: targets.kcal,
+      targetProt: targets.prot
     };
   });
 
@@ -72,6 +79,13 @@ export const MetricsView = ({ events, targets }: MetricsViewProps) => {
     { name: 'Carbohidratos', value: todayStats.carb * 4, color: '#cb912f' },
     { name: 'Grasas', value: todayStats.fat * 9, color: '#c4554d' },
   ].filter(d => d.value > 0);
+
+  const radarData = [
+    { subject: 'Proteína', A: (todayStats.prot / targets.prot) * 100, fullMark: 100 },
+    { subject: 'Carbos', A: (todayStats.carb / targets.carb) * 100, fullMark: 100 },
+    { subject: 'Grasas', A: (todayStats.fat / targets.fat) * 100, fullMark: 100 },
+    { subject: 'Calorías', A: (todayStats.kcal / targets.kcal) * 100, fullMark: 100 },
+  ];
 
   return (
     <div className="flex-1 notion-scrollbar overflow-y-auto p-4 sm:p-8 bg-bg">
@@ -154,15 +168,62 @@ export const MetricsView = ({ events, targets }: MetricsViewProps) => {
                     fillOpacity={1} 
                     fill="url(#colorKcal)" 
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="target" 
-                    stroke="#c4554d" 
-                    strokeDasharray="5 5" 
-                    dot={false}
-                    strokeWidth={1}
-                  />
+                  <ReferenceLine y={targets.kcal} stroke="#c4554d" strokeDasharray="5 5" label={{ value: 'Meta', position: 'right', fill: '#c4554d', fontSize: 10 }} />
                 </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Macro Balance Radar Chart */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-surface border border-border">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-text-muted mb-6">Balance de Objetivos (%)</h3>
+            <div className="h-64 sm:h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                  <PolarGrid stroke="#2f2f2f" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#787774' }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 150]} tick={{ fontSize: 8, fill: '#787774' }} />
+                  <Radar
+                    name="Cumplimiento"
+                    dataKey="A"
+                    stroke="#2383e2"
+                    fill="#2383e2"
+                    fillOpacity={0.6}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#252525', border: '1px solid #2f2f2f', borderRadius: '8px', fontSize: '10px' }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Protein Trend Chart */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-surface border border-border lg:col-span-2">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-text-muted mb-6">Consumo de Proteína (g)</h3>
+            <div className="h-48 sm:h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2f2f2f" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 8, fill: '#787774' }} 
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 8, fill: '#787774' }} 
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#2c2c2c' }}
+                    contentStyle={{ backgroundColor: '#252525', border: '1px solid #2f2f2f', borderRadius: '8px', fontSize: '10px' }}
+                  />
+                  <Bar dataKey="prot" fill="#2383e2" radius={[4, 4, 0, 0]} />
+                  <ReferenceLine y={targets.prot} stroke="#c4554d" strokeDasharray="3 3" strokeWidth={1} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -207,36 +268,8 @@ export const MetricsView = ({ events, targets }: MetricsViewProps) => {
             </div>
           </div>
 
-          {/* Protein Trend Chart */}
-          <div className="p-4 sm:p-6 rounded-2xl bg-surface border border-border lg:col-span-2">
-            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-text-muted mb-6">Consumo de Proteína (g)</h3>
-            <div className="h-48 sm:h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2f2f2f" vertical={false} />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 8, fill: '#787774' }} 
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 8, fill: '#787774' }} 
-                  />
-                  <Tooltip 
-                    cursor={{ fill: '#2c2c2c' }}
-                    contentStyle={{ backgroundColor: '#252525', border: '1px solid #2f2f2f', borderRadius: '8px', fontSize: '10px' }}
-                  />
-                  <Bar dataKey="prot" fill="#2383e2" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
           {/* Cost Trend Chart */}
-          <div className="p-4 sm:p-6 rounded-2xl bg-surface border border-border lg:col-span-2">
+          <div className="p-4 sm:p-6 rounded-2xl bg-surface border border-border">
             <h3 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-text-muted mb-6">Tendencia de Costo (€)</h3>
             <div className="h-48 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">

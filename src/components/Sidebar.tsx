@@ -192,13 +192,6 @@ export const Sidebar = ({ currentView, onViewChange, isCollapsed, onToggleCollap
             onClick={() => onViewChange('metrics')}
             isCollapsed={isCollapsed}
           />
-          <SidebarItem 
-            icon={<Settings className="w-4 h-4" />} 
-            label="Metas" 
-            active={currentView === 'targets'} 
-            onClick={() => onViewChange('targets')}
-            isCollapsed={isCollapsed}
-          />
         </SidebarGroup>
 
         <SidebarGroup label="Biblioteca" onAdd={() => {}} isCollapsed={isCollapsed}>
