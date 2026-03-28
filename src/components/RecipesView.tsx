@@ -22,13 +22,6 @@ import {
 import { cn } from '../lib/utils';
 import { Recipe, RecipeIngredient, Category, Ingredient } from '../types';
 
-const CATEGORIES: Category[] = [
-  { id: '1', name: 'Desayuno', color: 'bg-orange-500', icon: '🌅' },
-  { id: '2', name: 'Almuerzo', color: 'bg-blue-500', icon: '🍲' },
-  { id: '3', name: 'Cena', color: 'bg-purple-500', icon: '🌙' },
-  { id: '4', name: 'Snack', color: 'bg-green-500', icon: '🍎' }
-];
-
 const INITIAL_RECIPES: Recipe[] = [
   {
     id: '1',
@@ -46,12 +39,14 @@ const INITIAL_RECIPES: Recipe[] = [
 
 type RecipesViewProps = {
   recipes: Recipe[];
+  categories: Category[];
   ingredients: Ingredient[];
   onSave: (recipe: Recipe) => void;
   onDelete: (id: string) => void;
+  onAddCategory: (cat: Category) => void;
 };
 
-export const RecipesView = ({ recipes, ingredients, onSave, onDelete }: RecipesViewProps) => {
+export const RecipesView = ({ recipes, categories, ingredients, onSave, onDelete, onAddCategory }: RecipesViewProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -139,13 +134,13 @@ export const RecipesView = ({ recipes, ingredients, onSave, onDelete }: RecipesV
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-bg rounded-lg flex items-center justify-center text-xl">
-                      {CATEGORIES.find(c => c.id === recipe.catId)?.icon || '🍲'}
+                      {categories.find(c => c.id === recipe.catId)?.icon || '🍲'}
                     </div>
                     <div>
                       <h3 className="font-semibold text-text-primary group-hover:text-notion-blue transition-colors">{recipe.name}</h3>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
-                          {CATEGORIES.find(c => c.id === recipe.catId)?.name}
+                          {categories.find(c => c.id === recipe.catId)?.name}
                         </span>
                         <span className="text-[10px] text-text-muted">•</span>
                         <span className="text-[10px] text-text-muted">{recipe.servings} {recipe.servings === 1 ? 'porción' : 'porciones'}</span>
@@ -190,10 +185,12 @@ export const RecipesView = ({ recipes, ingredients, onSave, onDelete }: RecipesV
       {isModalOpen && (
         <RecipeModal 
           recipe={editingRecipe} 
+          categories={categories}
           ingredientsLibrary={ingredients}
           onClose={() => setIsModalOpen(false)} 
           onSave={handleSave}
           onDelete={handleDelete}
+          onAddCategory={onAddCategory}
         />
       )}
     </div>
@@ -202,16 +199,20 @@ export const RecipesView = ({ recipes, ingredients, onSave, onDelete }: RecipesV
 
 type ModalProps = {
   recipe: Recipe | null;
+  categories: Category[];
+  ingredientsLibrary: Ingredient[];
   onClose: () => void;
   onSave: (recipe: Recipe) => void;
   onDelete: (id: string) => void;
+  onAddCategory: (cat: Category) => void;
 };
 
-const RecipeModal = ({ recipe, ingredientsLibrary, onClose, onSave, onDelete }: ModalProps & { ingredientsLibrary: Ingredient[] }) => {
+const RecipeModal = ({ recipe, categories, ingredientsLibrary, onClose, onSave, onDelete, onAddCategory }: ModalProps) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Recipe>(recipe || {
     id: '',
     name: '',
-    catId: '1',
+    catId: categories[0]?.id || '1',
     servings: 1,
     tags: [],
     description: '',
@@ -220,6 +221,23 @@ const RecipeModal = ({ recipe, ingredientsLibrary, onClose, onSave, onDelete }: 
     photoUrl: ''
   });
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('🍴');
+
+  const handleAddCategory = () => {
+    if (newCatName.trim()) {
+      const newCat: Category = {
+        id: '', // Will be assigned in App.tsx
+        name: newCatName,
+        icon: newCatIcon,
+        color: 'bg-notion-blue'
+      };
+      onAddCategory(newCat);
+      setNewCatName('');
+      setIsAddingCategory(false);
+    }
+  };
 
   const totals = useMemo(() => {
     return formData.ingredients.reduce((acc, ing) => ({
@@ -271,6 +289,21 @@ const RecipeModal = ({ recipe, ingredientsLibrary, onClose, onSave, onDelete }: 
     });
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -293,9 +326,35 @@ const RecipeModal = ({ recipe, ingredientsLibrary, onClose, onSave, onDelete }: 
         <div className="flex-1 overflow-y-auto p-6 notion-scrollbar space-y-8">
           {/* Photo Section */}
           <div className="flex flex-col items-center">
-            <div className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-bg/50 transition-all cursor-pointer group">
-              <Camera className="w-8 h-8 text-text-muted group-hover:text-notion-blue transition-colors" />
-              <span className="text-xs text-text-muted group-hover:text-text-secondary">Clic para agregar foto</span>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            <div 
+              onClick={triggerFileInput}
+              className="w-full h-48 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-bg/50 transition-all cursor-pointer group relative overflow-hidden"
+            >
+              {formData.photoUrl ? (
+                <>
+                  <img 
+                    src={formData.photoUrl} 
+                    alt="Recipe" 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-8 h-8 text-text-muted group-hover:text-notion-blue transition-colors" />
+                  <span className="text-xs text-text-muted group-hover:text-text-secondary">Clic para agregar foto</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -314,17 +373,53 @@ const RecipeModal = ({ recipe, ingredientsLibrary, onClose, onSave, onDelete }: 
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Categoría</label>
-                <div className="relative">
-                  <select 
-                    value={formData.catId}
-                    onChange={(e) => setFormData({ ...formData, catId: e.target.value })}
-                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Categoría</label>
+                  <button 
+                    onClick={() => setIsAddingCategory(!isAddingCategory)}
+                    className="text-[10px] font-bold text-notion-blue hover:underline uppercase tracking-wider"
                   >
-                    {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                    {isAddingCategory ? 'Cancelar' : '+ Nueva'}
+                  </button>
                 </div>
+                
+                {isAddingCategory ? (
+                  <div className="flex gap-2 animate-in slide-in-from-top-1 duration-200">
+                    <input 
+                      type="text" 
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      className="w-10 bg-bg border border-border rounded-lg px-2 py-2 text-center text-sm"
+                      placeholder="Icon"
+                    />
+                    <input 
+                      type="text" 
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm"
+                      placeholder="Nombre..."
+                      autoFocus
+                    />
+                    <button 
+                      onClick={handleAddCategory}
+                      disabled={!newCatName.trim()}
+                      className="px-3 py-2 bg-notion-blue text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      OK
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <select 
+                      value={formData.catId}
+                      onChange={(e) => setFormData({ ...formData, catId: e.target.value })}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                    >
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Porciones</label>

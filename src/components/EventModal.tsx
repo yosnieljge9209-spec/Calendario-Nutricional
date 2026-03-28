@@ -22,22 +22,17 @@ import { CalendarEvent, RecipeIngredient, Category, Ingredient, Recipe } from '.
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const CATEGORIES: Category[] = [
-  { id: '1', name: 'Desayuno', color: 'bg-orange-500', icon: '🌅' },
-  { id: '2', name: 'Almuerzo', color: 'bg-blue-500', icon: '🍲' },
-  { id: '3', name: 'Cena', color: 'bg-purple-500', icon: '🌙' },
-  { id: '4', name: 'Snack', color: 'bg-green-500', icon: '🍎' }
-];
-
 type EventModalProps = {
   event: CalendarEvent | null;
   initialDate?: string;
   initialTime?: string;
   ingredientsLibrary: Ingredient[];
   recipesLibrary: Recipe[];
+  categories: Category[];
   onClose: () => void;
   onSave: (event: CalendarEvent) => void;
   onDelete: (id: string) => void;
+  onAddCategory: (cat: Category) => void;
 };
 
 export const EventModal = ({ 
@@ -46,9 +41,11 @@ export const EventModal = ({
   initialTime, 
   ingredientsLibrary, 
   recipesLibrary, 
+  categories,
   onClose, 
   onSave, 
-  onDelete 
+  onDelete,
+  onAddCategory
 }: EventModalProps) => {
   const [formData, setFormData] = useState<CalendarEvent>(event || {
     id: Math.random().toString(36).substr(2, 9),
@@ -56,12 +53,29 @@ export const EventModal = ({
     date: initialDate || format(new Date(), 'yyyy-MM-dd'),
     time: initialTime || '12:00',
     duration: 30,
-    catId: '1',
+    catId: categories[0]?.id || '1',
     completed: false,
     ingredients: []
   });
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryTab, setLibraryTab] = useState<'ingredients' | 'recipes'>('ingredients');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('🍴');
+
+  const handleAddCategory = () => {
+    if (newCatName.trim()) {
+      const newCat: Category = {
+        id: '', // Will be assigned in App.tsx
+        name: newCatName,
+        icon: newCatIcon,
+        color: 'bg-notion-blue'
+      };
+      onAddCategory(newCat);
+      setNewCatName('');
+      setIsAddingCategory(false);
+    }
+  };
 
   const totals = useMemo(() => {
     return formData.ingredients.reduce((acc, ing) => ({
@@ -137,9 +151,9 @@ export const EventModal = ({
           <div className="flex items-center gap-3">
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center text-xl",
-              CATEGORIES.find(c => c.id === formData.catId)?.color.replace('bg-', 'bg-opacity-20 ')
+              categories.find(c => c.id === formData.catId)?.color.replace('bg-', 'bg-opacity-20 ')
             )}>
-              <UtensilsCrossed className={cn("w-4 h-4", CATEGORIES.find(c => c.id === formData.catId)?.color.replace('bg-', 'text-'))} />
+              <UtensilsCrossed className={cn("w-4 h-4", categories.find(c => c.id === formData.catId)?.color.replace('bg-', 'text-'))} />
             </div>
             <h2 className="text-lg font-bold text-text-primary">
               {event ? 'Editar Comida' : 'Nueva Comida'}
@@ -201,17 +215,53 @@ export const EventModal = ({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-1">Categoría</label>
-                <div className="relative">
-                  <select 
-                    value={formData.catId}
-                    onChange={(e) => setFormData({ ...formData, catId: e.target.value })}
-                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Categoría</label>
+                  <button 
+                    onClick={() => setIsAddingCategory(!isAddingCategory)}
+                    className="text-[10px] font-bold text-notion-blue hover:underline uppercase tracking-wider"
                   >
-                    {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                    {isAddingCategory ? 'Cancelar' : '+ Nueva'}
+                  </button>
                 </div>
+                
+                {isAddingCategory ? (
+                  <div className="flex gap-2 animate-in slide-in-from-top-1 duration-200">
+                    <input 
+                      type="text" 
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      className="w-10 bg-bg border border-border rounded-lg px-2 py-2 text-center text-sm"
+                      placeholder="Icon"
+                    />
+                    <input 
+                      type="text" 
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm"
+                      placeholder="Nombre..."
+                      autoFocus
+                    />
+                    <button 
+                      onClick={handleAddCategory}
+                      disabled={!newCatName.trim()}
+                      className="px-3 py-2 bg-notion-blue text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      OK
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <select 
+                      value={formData.catId}
+                      onChange={(e) => setFormData({ ...formData, catId: e.target.value })}
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-notion-blue/50 outline-none"
+                    >
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -355,7 +405,7 @@ export const EventModal = ({
                           className="w-full flex items-center justify-between p-2 hover:bg-bg rounded text-left text-xs transition-colors"
                         >
                           <span className="flex items-center gap-2">
-                            <span>{CATEGORIES.find(c => c.id === recipe.catId)?.icon || '🍲'}</span>
+                            <span>{categories.find(c => c.id === recipe.catId)?.icon || '🍲'}</span>
                             <span className="font-medium">{recipe.name}</span>
                           </span>
                           <span className="text-text-muted">

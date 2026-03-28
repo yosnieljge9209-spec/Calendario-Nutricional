@@ -13,7 +13,11 @@ import {
   LayoutGrid,
   Clock,
   Tag,
-  FolderOpen
+  FolderOpen,
+  User,
+  ShoppingBasket,
+  CheckCircle2,
+  Activity
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -130,10 +134,10 @@ export const Sidebar = ({ currentView, onViewChange, isCollapsed, onToggleCollap
             isCollapsed={isCollapsed}
           />
           <SidebarItem 
-            icon={<Calendar className="w-4 h-4" />} 
-            label="Reservas" 
-            active={currentView === 'month'} 
-            onClick={() => onViewChange('month')}
+            icon={<Clock className="w-4 h-4" />} 
+            label="Cronograma" 
+            active={currentView === 'timeline'} 
+            onClick={() => onViewChange('timeline')}
             isCollapsed={isCollapsed}
           />
           <SidebarItem 
@@ -157,9 +161,30 @@ export const Sidebar = ({ currentView, onViewChange, isCollapsed, onToggleCollap
             onClick={() => onViewChange('day')}
             isCollapsed={isCollapsed}
           />
+          <SidebarItem 
+            icon={<CheckCircle2 className="w-4 h-4" />} 
+            label="Hábitos" 
+            active={currentView === 'habits'} 
+            onClick={() => onViewChange('habits')}
+            isCollapsed={isCollapsed}
+          />
+          <SidebarItem 
+            icon={<Activity className="w-4 h-4" />} 
+            label="Fisiología" 
+            active={currentView === 'physio'} 
+            onClick={() => onViewChange('physio')}
+            isCollapsed={isCollapsed}
+          />
         </SidebarGroup>
 
         <SidebarGroup label="Análisis" isCollapsed={isCollapsed}>
+          <SidebarItem 
+            icon={<User className="w-4 h-4" />} 
+            label="Perfil" 
+            active={currentView === 'profile'} 
+            onClick={() => onViewChange('profile')}
+            isCollapsed={isCollapsed}
+          />
           <SidebarItem 
             icon={<BarChart2 className="w-4 h-4" />} 
             label="Métricas" 
@@ -186,7 +211,7 @@ export const Sidebar = ({ currentView, onViewChange, isCollapsed, onToggleCollap
             isCollapsed={isCollapsed}
           />
           <SidebarItem 
-            icon={<Tag className="w-4 h-4" />} 
+            icon={<ShoppingBasket className="w-4 h-4" />} 
             label="Ingredientes" 
             active={currentView === 'ingredients'} 
             onClick={() => onViewChange('ingredients')}

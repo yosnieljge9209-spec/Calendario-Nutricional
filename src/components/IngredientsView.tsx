@@ -247,6 +247,7 @@ type ModalProps = {
 };
 
 const IngredientModal = ({ ingredient, onClose, onSave, onDelete }: ModalProps) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Ingredient>(ingredient || {
     id: '',
     name: '',
@@ -289,6 +290,21 @@ const IngredientModal = ({ ingredient, onClose, onSave, onDelete }: ModalProps) 
     }
   }, [formData.purchasePrice, formData.purchaseQuantity, formData.unit]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -311,9 +327,35 @@ const IngredientModal = ({ ingredient, onClose, onSave, onDelete }: ModalProps) 
         <div className="flex-1 overflow-y-auto p-6 notion-scrollbar space-y-8">
           {/* Photo Section */}
           <div className="flex flex-col items-center">
-            <div className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-bg/50 transition-all cursor-pointer group">
-              <Camera className="w-8 h-8 text-text-muted group-hover:text-notion-blue transition-colors" />
-              <span className="text-xs text-text-muted group-hover:text-text-secondary">Clic para agregar foto</span>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            <div 
+              onClick={triggerFileInput}
+              className="w-full h-48 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-bg/50 transition-all cursor-pointer group relative overflow-hidden"
+            >
+              {formData.photoUrl ? (
+                <>
+                  <img 
+                    src={formData.photoUrl} 
+                    alt="Ingredient" 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-8 h-8 text-text-muted group-hover:text-notion-blue transition-colors" />
+                  <span className="text-xs text-text-muted group-hover:text-text-secondary">Clic para agregar foto</span>
+                </>
+              )}
             </div>
           </div>
 
