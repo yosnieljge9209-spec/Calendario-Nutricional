@@ -42,6 +42,10 @@ async function startServer() {
   };
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV, appUrl: APP_URL });
+  });
+
   app.post("/api/auth/config", (req, res) => {
     const { clientId, clientSecret } = req.body;
     if (!clientId || !clientSecret) return res.status(400).json({ error: "Faltan credenciales" });
@@ -206,7 +210,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`App URL: ${APP_URL}`);
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL: Failed to start server:", err);
+});

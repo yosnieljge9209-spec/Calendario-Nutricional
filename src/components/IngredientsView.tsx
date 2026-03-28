@@ -178,48 +178,60 @@ export const IngredientsView = ({ ingredients, onSave, onDelete }: IngredientsVi
             <div 
               key={ing.id}
               onClick={() => handleEdit(ing)}
-              className="group bg-surface border border-border rounded-xl p-4 hover:border-notion-blue/50 hover:shadow-xl hover:shadow-black/5 transition-all cursor-pointer relative overflow-hidden"
+              className="group bg-surface border border-border rounded-xl hover:border-notion-blue/50 hover:shadow-xl hover:shadow-black/5 transition-all cursor-pointer relative overflow-hidden flex flex-col"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-bg rounded-lg flex items-center justify-center text-xl">
-                    {ing.icon}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-text-primary group-hover:text-notion-blue transition-colors">{ing.name}</h3>
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">{ing.foodGroup}</span>
-                  </div>
+              {ing.photoUrl && (
+                <div className="w-full h-32 overflow-hidden border-b border-border">
+                  <img 
+                    src={ing.photoUrl} 
+                    alt={ing.name} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
-                <button className="p-1 rounded hover:bg-bg text-text-muted opacity-0 group-hover:opacity-100 transition-all">
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-              </div>
+              )}
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-bg rounded-lg flex items-center justify-center text-xl">
+                      {ing.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-text-primary group-hover:text-notion-blue transition-colors">{ing.name}</h3>
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">{ing.foodGroup}</span>
+                    </div>
+                  </div>
+                  <button className="p-1 rounded hover:bg-bg text-text-muted opacity-0 group-hover:opacity-100 transition-all">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
 
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
-                  <span className="text-[10px] text-text-muted uppercase font-bold">Calorías</span>
-                  <span className="text-sm font-semibold text-text-primary">{ing.kcal} <span className="text-[10px] font-normal text-text-muted">kcal</span></span>
-                </div>
-                <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
-                  <span className="text-[10px] text-text-muted uppercase font-bold">Proteína</span>
-                  <span className="text-sm font-semibold text-text-primary">{ing.prot}g</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                <div className="flex items-center gap-1 text-notion-green font-semibold">
-                  <DollarSign className="w-3 h-3" />
-                  <span className="text-sm">{ing.pricePerUnit.toFixed(2)}</span>
-                  <span className="text-[10px] text-text-muted font-normal">/ {ing.unit.replace('Por ', '')}</span>
-                </div>
-                {ing.glycemicIndex && (
-                  <div className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter",
-                    GLYCEMIC_INDEX.find(gi => gi.value === ing.glycemicIndex)?.color
-                  )}>
-                    IG {ing.glycemicIndex}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
+                    <span className="text-[10px] text-text-muted uppercase font-bold">Calorías</span>
+                    <span className="text-sm font-semibold text-text-primary">{ing.kcal} <span className="text-[10px] font-normal text-text-muted">kcal</span></span>
                   </div>
-                )}
+                  <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
+                    <span className="text-[10px] text-text-muted uppercase font-bold">Proteína</span>
+                    <span className="text-sm font-semibold text-text-primary">{ing.prot}g</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-1 text-notion-green font-semibold">
+                    <DollarSign className="w-3 h-3" />
+                    <span className="text-sm">{ing.pricePerUnit.toFixed(2)}</span>
+                    <span className="text-[10px] text-text-muted font-normal">/ {ing.unit.replace('Por ', '')}</span>
+                  </div>
+                  {ing.glycemicIndex && (
+                    <div className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter",
+                      GLYCEMIC_INDEX.find(gi => gi.value === ing.glycemicIndex)?.color
+                    )}>
+                      IG {ing.glycemicIndex}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

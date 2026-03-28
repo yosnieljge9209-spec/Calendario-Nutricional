@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Cloud, RefreshCw, LogIn, LogOut, CheckCircle, AlertCircle, Download, Upload } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Cloud, RefreshCw, LogIn, LogOut, CheckCircle, AlertCircle, Download, Upload, FileJson, FileUp, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SyncStatus } from '../hooks/useSync';
 
@@ -49,16 +49,34 @@ export const SyncView = ({
       });
 
       if (!configRes.ok) {
-        const errData = await configRes.json();
-        throw new Error(errData.error || "Error al configurar credenciales");
+        const text = await configRes.text();
+        try {
+          const errData = JSON.parse(text);
+          throw new Error(errData.error || `Error ${configRes.status}: ${configRes.statusText}`);
+        } catch (e) {
+          throw new Error(`Error del servidor (${configRes.status}): ${text.substring(0, 100)}...`);
+        }
       }
 
       const res = await fetch('/api/auth/url');
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "No se pudo obtener la URL de autenticación");
+        const text = await res.text();
+        try {
+          const errData = JSON.parse(text);
+          throw new Error(errData.error || `Error ${res.status}: ${res.statusText}`);
+        } catch (e) {
+          throw new Error(`Error del servidor (${res.status}): ${text.substring(0, 100)}...`);
+        }
       }
-      const { url } = await res.json();
+      
+      const text = await res.text();
+      let url;
+      try {
+        const data = JSON.parse(text);
+        url = data.url;
+      } catch (e) {
+        throw new Error("La respuesta del servidor no es un JSON válido: " + text.substring(0, 100));
+      }
       
       if (!url || url.includes('client_id=undefined')) {
         setError("Error: El Client ID no se configuró correctamente.");
@@ -94,6 +112,45 @@ export const SyncView = ({
     setIsLoading(false);
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportJSON = () => {
+    const data = getCurrentData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nutriplan_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        // Basic validation
+        if (data.userProfile || data.events || data.habits) {
+          onSyncComplete(data);
+          alert("¡Datos importados con éxito!");
+        } else {
+          throw new Error("El archivo no parece ser un respaldo válido de NutriPlan.");
+        }
+      } catch (err: any) {
+        alert("Error al importar: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="flex-1 notion-scrollbar overflow-y-auto p-4 sm:p-8 bg-bg">
       <div className="max-w-2xl mx-auto space-y-8">
@@ -104,6 +161,44 @@ export const SyncView = ({
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Google Drive — Sincronización</h1>
             <p className="text-text-secondary text-sm">Respalda tus datos en Google Drive para acceder desde cualquier dispositivo.</p>
+          </div>
+        </div>
+
+        <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-notion-orange/10 flex items-center justify-center text-notion-orange">
+              <FileJson className="w-4 h-4" />
+            </div>
+            <h2 className="font-bold text-lg">Exportar e Importar (Manual)</h2>
+          </div>
+          
+          <p className="text-xs text-text-secondary leading-relaxed">
+            Si la sincronización con la nube falla, puedes descargar un archivo con todos tus datos y guardarlo manualmente, o subir un archivo previo para restaurar tu información.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={handleExportJSON}
+              className="flex items-center justify-center gap-2 p-4 rounded-xl border border-border hover:bg-surface-light transition-all font-bold text-sm"
+            >
+              <FileDown className="w-4 h-4 text-notion-blue" />
+              Exportar Datos (.json)
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 p-4 rounded-xl border border-border hover:bg-surface-light transition-all font-bold text-sm"
+            >
+              <FileUp className="w-4 h-4 text-notion-green" />
+              Importar Datos (.json)
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImportJSON} 
+              accept=".json" 
+              className="hidden" 
+            />
           </div>
         </div>
 

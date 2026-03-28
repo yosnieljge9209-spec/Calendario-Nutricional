@@ -24,7 +24,7 @@ import { HabitsView } from './components/HabitsView';
 import { SyncView } from './components/SyncView';
 import { useSync } from './hooks/useSync';
 import { CalendarEvent, UserTargets, Category, Ingredient, Recipe, UserProfile, WaterLog, WeightLog, PhysiologicalLog, Habit, HabitLog } from './types';
-import { Plus, Search, Bell, User, Menu, X, ShoppingBasket, Cloud, RefreshCw, AlertCircle } from 'lucide-react';
+import { Plus, Menu, X, ShoppingBasket, Cloud, RefreshCw, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
@@ -740,22 +740,6 @@ function App() {
                 )}
               </div>
             )}
-
-            <div className="relative group hidden sm:block">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted group-hover:text-text-secondary transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Buscar..." 
-                className="bg-surface border border-border rounded-md pl-8 pr-3 py-1 text-xs focus:outline-none focus:border-notion-blue w-32 md:w-40 transition-all focus:md:w-60"
-              />
-            </div>
-            <button className="p-1.5 rounded hover:bg-surface text-text-secondary transition-colors relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-notion-red rounded-full border border-bg" />
-            </button>
-            <div className="w-7 h-7 rounded-full bg-notion-purple flex items-center justify-center text-[10px] font-bold text-white cursor-pointer hover:opacity-80 transition-opacity">
-              YJ
-            </div>
           </div>
         </header>
 

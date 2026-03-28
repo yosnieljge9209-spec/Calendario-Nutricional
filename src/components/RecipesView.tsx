@@ -129,51 +129,63 @@ export const RecipesView = ({ recipes, categories, ingredients, onSave, onDelete
               <div 
                 key={recipe.id}
                 onClick={() => handleEdit(recipe)}
-                className="group bg-surface border border-border rounded-xl p-4 hover:border-notion-blue/50 hover:shadow-xl hover:shadow-black/5 transition-all cursor-pointer relative overflow-hidden"
+                className="group bg-surface border border-border rounded-xl hover:border-notion-blue/50 hover:shadow-xl hover:shadow-black/5 transition-all cursor-pointer relative overflow-hidden flex flex-col"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-bg rounded-lg flex items-center justify-center text-xl">
-                      {categories.find(c => c.id === recipe.catId)?.icon || '🍲'}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-text-primary group-hover:text-notion-blue transition-colors">{recipe.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
-                          {categories.find(c => c.id === recipe.catId)?.name}
-                        </span>
-                        <span className="text-[10px] text-text-muted">•</span>
-                        <span className="text-[10px] text-text-muted">{recipe.servings} {recipe.servings === 1 ? 'porción' : 'porciones'}</span>
+                {recipe.photoUrl && (
+                  <div className="w-full h-40 overflow-hidden border-b border-border">
+                    <img 
+                      src={recipe.photoUrl} 
+                      alt={recipe.name} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-bg rounded-lg flex items-center justify-center text-xl">
+                        {categories.find(c => c.id === recipe.catId)?.icon || '🍲'}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-text-primary group-hover:text-notion-blue transition-colors">{recipe.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
+                            {categories.find(c => c.id === recipe.catId)?.name}
+                          </span>
+                          <span className="text-[10px] text-text-muted">•</span>
+                          <span className="text-[10px] text-text-muted">{recipe.servings} {recipe.servings === 1 ? 'porción' : 'porciones'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
-                    <span className="text-[10px] text-text-muted uppercase font-bold">Calorías</span>
-                    <span className="text-sm font-semibold text-text-primary">{(totals.kcal / recipe.servings).toFixed(0)} <span className="text-[10px] font-normal text-text-muted">kcal</span></span>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
+                      <span className="text-[10px] text-text-muted uppercase font-bold">Calorías</span>
+                      <span className="text-sm font-semibold text-text-primary">{(totals.kcal / recipe.servings).toFixed(0)} <span className="text-[10px] font-normal text-text-muted">kcal</span></span>
+                    </div>
+                    <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
+                      <span className="text-[10px] text-text-muted uppercase font-bold">Costo</span>
+                      <span className="text-sm font-semibold text-notion-green">${(totals.cost / recipe.servings).toFixed(2)}</span>
+                    </div>
                   </div>
-                  <div className="bg-bg/50 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
-                    <span className="text-[10px] text-text-muted uppercase font-bold">Costo</span>
-                    <span className="text-sm font-semibold text-notion-green">${(totals.cost / recipe.servings).toFixed(2)}</span>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {recipe.tags.map(tag => (
-                    <span key={tag} className="px-1.5 py-0.5 bg-bg border border-border rounded text-[9px] text-text-muted uppercase font-bold tracking-tighter">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-border/50 text-[10px] text-text-muted">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {(totals.prot / recipe.servings).toFixed(1)}g</span>
-                    <span className="flex items-center gap-1"><Wheat className="w-3 h-3" /> {(totals.carb / recipe.servings).toFixed(1)}g</span>
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {recipe.tags.map(tag => (
+                      <span key={tag} className="px-1.5 py-0.5 bg-bg border border-border rounded text-[9px] text-text-muted uppercase font-bold tracking-tighter">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
-                  <span className="flex items-center gap-1"><Droplet className="w-3 h-3" /> {(totals.fat / recipe.servings).toFixed(1)}g</span>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-border/50 text-[10px] text-text-muted">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {(totals.prot / recipe.servings).toFixed(1)}g</span>
+                      <span className="flex items-center gap-1"><Wheat className="w-3 h-3" /> {(totals.carb / recipe.servings).toFixed(1)}g</span>
+                    </div>
+                    <span className="flex items-center gap-1"><Droplet className="w-3 h-3" /> {(totals.fat / recipe.servings).toFixed(1)}g</span>
+                  </div>
                 </div>
               </div>
             );
