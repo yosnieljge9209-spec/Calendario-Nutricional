@@ -111,8 +111,8 @@ export const Sidebar = ({ currentView, onViewChange, isCollapsed, onToggleCollap
     )}>
       <div className={cn("p-4 flex items-center justify-between", isCollapsed && "flex-col gap-4 px-2")}>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-notion-green rounded flex items-center justify-center text-white text-xs font-bold shrink-0">
-            N
+          <div className="w-6 h-6 bg-notion-orange rounded flex items-center justify-center text-white text-xs font-bold shrink-0">
+            🍴
           </div>
           {!isCollapsed && <span className="font-semibold text-sm truncate">NutriPlan</span>}
         </div>
